@@ -2,6 +2,8 @@ package com.mynuex.geoquiz;
 
 import androidx.appcompat.app.AppCompatActivity;
 
+import android.app.Activity;
+import android.content.Intent;
 import android.media.Image;
 import android.os.Bundle;
 import android.util.Log;
@@ -16,6 +18,7 @@ public class QuizActivity extends AppCompatActivity {
 
     private static final String TAG = "QuizActivity";
     private static final String KEY_INDEX = "index";
+    private static final int REQUEST_CODE_CHEAT = 0;
 
     // Variables
     private Button mTrueButton;
@@ -23,43 +26,21 @@ public class QuizActivity extends AppCompatActivity {
     private Button mNextButton;
     private Button mPrevButton;
     private TextView mQuestionTextView;
+    private Button mCheatButton;
+    private boolean mIsCheater;
 
-    private TrueFalse[] mQuestionBank = new TrueFalse[] {
-            new TrueFalse(R.string.question_oceans, true),
-            new TrueFalse(R.string.question_mideast, false),
-            new TrueFalse(R.string.question_africa, false),
-            new TrueFalse(R.string.question_americas, true),
-            new TrueFalse(R.string.question_asia, true),
+
+    private Question[] mQuestionBank = new Question[] {
+            new Question(R.string.question_australia, true),
+            new Question(R.string.question_oceans, true),
+            new Question(R.string.question_mideast, false),
+            new Question(R.string.question_africa, false),
+            new Question(R.string.question_americas, true),
+            new Question(R.string.question_asia, true),
     };
 
     private int mCurrentIndex = 0;
     // Updates questions in Textview
-    private void updateQuestion() {
-        int question = mQuestionBank[mCurrentIndex].getQuestion();
-        mQuestionTextView.setText(question);
-    }
-    // method to check what user pressed
-    private void checkAnswer(boolean userPressedTrue) {
-        boolean answerIsTrue = mQuestionBank[mCurrentIndex].isTrueQuestion();
-
-        int messageResId = 0;
-
-        if (userPressedTrue == answerIsTrue) {
-            messageResId = R.string.correct_toast;
-        } else {
-            messageResId = R.string.incorrect_toast;
-        }
-        Toast.makeText(this, messageResId, Toast.LENGTH_SHORT)
-                .show();
-    }
-
-    @Override
-    public void onSaveInstanceState(Bundle savedInstanceState) {
-        super.onSaveInstanceState(savedInstanceState);
-        Log.i(TAG, "onSaveInstanceState");
-        savedInstanceState.putInt(KEY_INDEX, mCurrentIndex);
-
-    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -67,12 +48,19 @@ public class QuizActivity extends AppCompatActivity {
         Log.d(TAG, "onCreate(Bundle) called");
         setContentView(R.layout.activity_quiz);
 
+        if (savedInstanceState != null) {
+            mCurrentIndex = savedInstanceState.getInt(KEY_INDEX, 0);
+        }
+
+        //mIsCheater = false;
+
         // Use res ID to retrieve inflated objects and assign to variables
         mQuestionTextView = findViewById(R.id.question_text_view);
         mTrueButton = findViewById(R.id.true_button);
         mFalseButton = findViewById(R.id.false_button);
         mNextButton = findViewById(R.id.next_button);
         mPrevButton = findViewById(R.id.previous_button);
+        mCheatButton = findViewById(R.id.cheat_button);
 
         mTrueButton.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -92,6 +80,7 @@ public class QuizActivity extends AppCompatActivity {
             @Override
             public void onClick(View v) {
                 mCurrentIndex = (mCurrentIndex + 1) % mQuestionBank.length;
+                mIsCheater = false;
                 updateQuestion();
 
             }
@@ -110,13 +99,38 @@ public class QuizActivity extends AppCompatActivity {
             }
         });
 
-        updateQuestion();
+        mCheatButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                // Start CheatActivity intent
+                boolean answerIsTrue = mQuestionBank[mCurrentIndex].isAnswerTrue();
+                Intent intent = CheatActivity.newIntent(QuizActivity.this, answerIsTrue);
+                startActivityForResult(intent, REQUEST_CODE_CHEAT);
+            }
+        });
 
-        if (savedInstanceState != null) {
-            mCurrentIndex = savedInstanceState.getInt(KEY_INDEX, 0);
+        updateQuestion();
+    }
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        if (resultCode != Activity.RESULT_OK) {
+            return;
         }
 
-        updateQuestion();
+        if (requestCode == REQUEST_CODE_CHEAT) {
+            if (data == null) {
+                return;
+            }
+            mIsCheater = CheatActivity.wasAnswerShown(data);
+        }
+    }
+
+    @Override
+    public void onSaveInstanceState(Bundle savedInstanceState) {
+        super.onSaveInstanceState(savedInstanceState);
+        Log.i(TAG, "onSaveInstanceState");
+        savedInstanceState.putInt(KEY_INDEX, mCurrentIndex);
+
     }
     @Override
     public void onStart() {
@@ -143,5 +157,32 @@ public class QuizActivity extends AppCompatActivity {
         super.onDestroy();
         Log.d(TAG, "onDestroy() called");
 
+    }
+    private void updateQuestion() {
+        int question = mQuestionBank[mCurrentIndex].getTextResId();
+        mQuestionTextView.setText(question);
+    }
+    // method to check what user pressed
+    private void checkAnswer(boolean userPressedTrue) {
+        boolean answerIsTrue = mQuestionBank[mCurrentIndex].isAnswerTrue();
+
+        int messageResId = 0;
+
+        if (mIsCheater) {
+            if (userPressedTrue == answerIsTrue) {
+                messageResId = R.string.judgment_toast;
+            } else {
+                messageResId = R.string.incorrect_toast;
+            }
+        } else {
+            if (userPressedTrue == answerIsTrue) {
+                messageResId = R.string.correct_toast;
+            } else {
+                messageResId = R.string.incorrect_toast;
+            }
+        }
+
+        Toast.makeText(this, messageResId, Toast.LENGTH_SHORT)
+                .show();
     }
 }
